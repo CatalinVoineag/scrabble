@@ -24,12 +24,19 @@ typedef struct button_struct {
   bool pressed; 
   SDL_FRect rect; 
   const char *name;
-  bool letter = false;
 } button_struct;
+
+typedef struct letter_struct {
+  bool pressed; 
+  int points;
+  SDL_FRect rect; 
+  const char *name;
+} letter_struct;
 
 typedef struct {
   SDL_FRect rect; 
   const char *name;
+  int points;
 } word_struct;
 
 typedef struct gameState {
@@ -38,7 +45,7 @@ typedef struct gameState {
   int totalRounds;
   bool roundWon;
   int scoreToWin;
-  int shuffles;
+  int newLetters;
   int score;
   bool gameOver;
 } gameState;
@@ -47,36 +54,44 @@ global SDL_Window *window = NULL;
 global SDL_Renderer *renderer = NULL;
 global int letters_size = 16;
 global vector<word_struct> wordVector;
-global vector<button_struct> letter_structs;
+global vector<letter_struct> letter_structs;
 global vector<button_struct> button_structs;
 global gameState state {
   .running = true,
   .currentRound = 0,
   .totalRounds = 2,
   .roundWon = false,
-  .scoreToWin = 6,
-  .shuffles = 3,
+  .scoreToWin = 10,
+  .newLetters = 3,
   .score = 0,
   .gameOver = false
 };
 
-void render_letters(button_struct button) {
-  if (button.pressed) {
+void render_letters(letter_struct letter) {
+  if (letter.pressed) {
     SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
   } else {
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
   }
 
-  SDL_RenderFillRect(renderer, &button.rect);
+  SDL_RenderFillRect(renderer, &letter.rect);
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
   float scale = 4.0f;
-  float text_w = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE * SDL_strlen(button.name);
+  float text_w = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE * SDL_strlen(letter.name);
   float text_h = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE;
 
   SDL_SetRenderScale(renderer, scale, scale);
-  float x = (button.rect.x + (button.rect.w - text_w * scale) / 2.0f) / scale;
-  float y = (button.rect.y + (button.rect.h - text_h * scale) / 2.0f) / scale;
-  SDL_RenderDebugText(renderer, x, y, button.name);
+  float x = (letter.rect.x + (letter.rect.w - text_w * scale) / 2.0f) / scale;
+  float y = (letter.rect.y + (letter.rect.h - text_h * scale) / 2.0f) / scale;
+  SDL_RenderDebugText(renderer, x, y, letter.name);
+
+  float point_scale = 2.5;
+  float point_w = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE * (to_string(letter.points)).length();
+  float point_h = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE;
+  SDL_SetRenderScale(renderer, point_scale, point_scale);
+  float point_x = (letter.rect.x + (letter.rect.w - point_w * point_scale) / 2.0f) / point_scale;
+  float point_y = (letter.rect.y + (letter.rect.h - point_h * point_scale) / 2.0f) / point_scale;
+  SDL_RenderDebugTextFormat(renderer, point_x+12, point_y+12, "%d",letter.points);
 
   SDL_SetRenderScale(renderer, 1.0f, 1.0f);
 } 
@@ -98,35 +113,42 @@ void render_buttons(button_struct button) {
   SDL_SetRenderScale(renderer, 1.0f, 1.0f);
 } 
 
-void render_word(SDL_FRect *rect, const char *name) {
+void render_word(word_struct word) {
   SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-  SDL_RenderFillRect(renderer, rect);
+  SDL_RenderFillRect(renderer, &word.rect);
 
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
   float scale = 4.0f;
-  float text_w = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE * SDL_strlen(name);
+  float text_w = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE * SDL_strlen(word.name);
   float text_h = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE;
 
   SDL_SetRenderScale(renderer, scale, scale);
-  float x = (rect->x + (rect->w - text_w * scale) / 2.0f) / scale;
-  float y = (rect->y + (rect->h - text_h * scale) / 2.0f) / scale;
-  SDL_RenderDebugText(renderer, x, y, name);
+  float x = (word.rect.x + (word.rect.w - text_w * scale) / 2.0f) / scale;
+  float y = (word.rect.y + (word.rect.h - text_h * scale) / 2.0f) / scale;
+  SDL_RenderDebugText(renderer, x, y, word.name);
+
+  float point_scale = 2.5;
+  float point_w = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE * (to_string(word.points)).length();
+  float point_h = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE;
+  SDL_SetRenderScale(renderer, point_scale, point_scale);
+  float point_x = (word.rect.x + (word.rect.w - point_w * point_scale) / 2.0f) / point_scale;
+  float point_y = (word.rect.y + (word.rect.h - point_h * point_scale) / 2.0f) / point_scale;
+  SDL_RenderDebugTextFormat(renderer, point_x+12, point_y+12, "%d",word.points);
 
   SDL_SetRenderScale(renderer, 1.0f, 1.0f);
 } 
 
-void drawWord(button_struct button) {
+void drawWord(letter_struct letter) {
   auto letterInWord = find_if(
     wordVector.begin(),
     wordVector.end(),
     [&](const word_struct &w) {
-    return strcmp(w.name, button.name) == 0;
+    return strcmp(w.name, letter.name) == 0;
     }
   ); 
 
-  if (button.pressed) {
+  if (letter.pressed) {
     float x;
-    printf("word size %zu\n", wordVector.size());
     if (wordVector.size() > 0) {
       x = wordVector.back().rect.x + 200;
     } else {
@@ -134,7 +156,8 @@ void drawWord(button_struct button) {
     }
     wordVector.push_back({
       .rect = { x, 100, 100, 100 },
-      .name = button.name 
+      .name = letter.name, 
+      .points = letter.points 
     });
   } else { 
     if (letterInWord != wordVector.end()) {
@@ -162,7 +185,25 @@ void drawScore() {
   float y = 10;
   SDL_RenderDebugTextFormat(renderer, x, y, "SCORE %d", state.score);
   SDL_RenderDebugTextFormat(renderer, 100, y, "Round %d/%d", state.currentRound, state.totalRounds);
+  SDL_RenderDebugTextFormat(renderer, 200, y, "Resets %d", state.newLetters);
+  SDL_RenderDebugTextFormat(renderer, 300, y, "Points to win %d", state.scoreToWin);
   SDL_SetRenderScale(renderer, 1.0f, 1.0f);
+}
+
+void drawNewLetters() {
+  SDL_RenderClear(renderer);
+  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+  float scale = 4.0f;
+  float text_w = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE; 
+  float text_h = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE;
+
+  SDL_SetRenderScale(renderer, scale, scale);
+  float x = 200;
+  float y = 10;
+  SDL_RenderDebugTextFormat(renderer, x, y, "Resets %d", state.newLetters);
+  SDL_SetRenderScale(renderer, 1.0f, 1.0f);
+
+  SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 }
 
 void drawGameOver() {
@@ -193,7 +234,7 @@ void drawGameOver() {
   }); 
 
   for(int i = 0; i < button_structs.size(); i++) {
-    render_letters(button_structs[i]);
+    render_buttons(button_structs[i]);
   }
 }
 
@@ -226,7 +267,7 @@ void drawRoundWon() {
   }); 
 
   for(int i = 0; i < button_structs.size(); i++) {
-    render_letters(button_structs[i]);
+    render_buttons(button_structs[i]);
   }
 }
 
@@ -248,51 +289,85 @@ void drawLetters() {
       x = letter_structs[i - 1].rect.x + 200;
       y = letter_structs[i - 1].rect.y;
     } 
+    char letter = letters[rand() % 26];
 
     letter_structs.push_back({
       .pressed = false,
+      .points = points[letter],
       .rect = { x, y, 100, 100 },
-      .name = new char[2] { letters[rand() % 26], '\0' },
-      .letter = true
+      .name = new char[2] { letter, '\0' },
     }); 
   }
 }
 
-void shuffle() {
-  resetWord();
-  drawLetters();
+void newLetters(bool use=false) {
+  if (state.newLetters > 0) {
+    if (use) {
+      state.newLetters--;
+    }
+    resetWord();
+    drawLetters();
+  } 
+}
+
+void shuffleLetters() {
+  string letterString;
+  for (int i = 0; i < letter_structs.size(); i++) {
+    letterString.append(letter_structs[i].name);
+  }
+
+  shuffle(letterString.begin(), letterString.end(), default_random_engine(0));
+
+  for (int i = 0; i < letter_structs.size(); i++) {
+    letter_structs[i].name = new char[2] { letterString[i], '\0'};
+  }
+}
+
+void roundWon() {
+  if (state.totalRounds < 6) {
+    state.totalRounds++;
+  }
+  state.scoreToWin += 5;
+  state.roundWon = true;
 }
 
 void checkRound() {
+  if (state.score >= state.scoreToWin) {
+    roundWon();
+    return;
+  }
+
   if (state.currentRound >= state.totalRounds) {
     if (state.score < state.scoreToWin) {
       state.gameOver = true;
     } else {
-      state.roundWon = true;
+      roundWon();
     }
   }
 }
 
 void setScore() {
   string s;
+  int potentialScore = 0;
   for (int i = 0; i < wordVector.size(); i++) {
     s.append(wordVector[i].name);
+    potentialScore += wordVector[i].points;
   }
   auto realWord = find(words.begin(), words.end(), s);
 
   if (realWord != words.end()){
-    state.score += wordVector.size();
+    state.score += potentialScore;
     int multiplier = 5;
     int over_5 = wordVector.size() - 5;
 
     if (over_5 > 0) {
       state.score += over_5 * multiplier;
-      state.score -= over_5;
     }
-    shuffle();
+    newLetters();
     state.currentRound++;
+    resetWord();
     checkRound();
-  }
+  } 
 }
 
 void drawButtons() {
@@ -308,7 +383,12 @@ void drawButtons() {
   }); 
   button_structs.push_back({
     .pressed = false,
-    .rect = { 200, 400, 300, 150 },
+    .rect = { 100, 400, 400, 150 },
+    .name = "New letters",
+  }); 
+  button_structs.push_back({
+    .pressed = false,
+    .rect = { 100, 700, 300, 150 },
     .name = "Shuffle",
   }); 
 }
@@ -316,14 +396,14 @@ void drawButtons() {
 void restart() {
   SDL_RenderClear(renderer);
   state.score = 0;
-  state.shuffles = 3;
+  state.newLetters = 3;
   state.gameOver = false;
   state.roundWon = false;
   state.currentRound = 0;
   button_structs.clear();
   drawButtons();
   resetWord();
-  shuffle();
+  newLetters();
 }
 
 int main() {
@@ -358,7 +438,7 @@ int main() {
         render_buttons(button_structs[i]);
       }
       for(int i = 0; i < wordVector.size(); i++) {
-        render_word(&wordVector[i].rect, wordVector[i].name);
+        render_word(wordVector[i]);
       }
     }
 
@@ -370,7 +450,7 @@ int main() {
         case SDL_EVENT_MOUSE_BUTTON_DOWN: {
           SDL_FPoint point = { event.button.x, event.button.y };
           for (int i = 0; i < letter_structs.size(); i++) {
-            button_struct& obj = letter_structs[i];
+            letter_struct& obj = letter_structs[i];
             if (SDL_PointInRectFloat(&point, &obj.rect)) {
               if (obj.pressed) {
                 obj.pressed = false;
@@ -381,7 +461,6 @@ int main() {
               }
             }
           }
-
           for (int i = 0; i < button_structs.size(); i++) {
             button_struct& obj = button_structs[i];
             if (SDL_PointInRectFloat(&point, &obj.rect)) {
@@ -391,8 +470,11 @@ int main() {
               if (strcmp(obj.name, "Reset") == 0) {
                 resetWord();
               }
+              if (strcmp(obj.name, "New letters") == 0) {
+                newLetters(true);
+              }
               if (strcmp(obj.name, "Shuffle") == 0) {
-                shuffle();
+                shuffleLetters();
               }
               if (strcmp(obj.name, "Exit") == 0) {
                 state.running = false;
