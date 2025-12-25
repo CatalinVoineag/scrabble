@@ -69,7 +69,7 @@ global gameState state {
 
 void render_letters(letter_struct letter) {
   if (letter.pressed) {
-    SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
   } else {
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
   }
@@ -406,6 +406,9 @@ void restart() {
   newLetters();
 }
 
+void removeWordLetter(vector<word_struct> wordVector, int i) {
+}
+
 int main() {
   srand((unsigned)time(NULL));
   SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
@@ -460,6 +463,31 @@ int main() {
                 drawWord(obj);
               }
             }
+          }
+          for (int i = 0; i < wordVector.size(); i++) {
+            if (SDL_PointInRectFloat(&point, &wordVector[i].rect)) {
+              auto letterInWord = find_if(
+                letter_structs.begin(),
+                letter_structs.end(),
+                [&](const letter_struct &l) {
+                  return strcmp(l.name, wordVector[i].name) == 0;
+                }
+              ); 
+              if (letterInWord != letter_structs.end()) {
+                size_t index = distance(letter_structs.begin(), letterInWord);
+                letter_structs[index].pressed = false;
+              }
+
+              wordVector.erase(wordVector.begin() + i);
+            }
+          }
+          if (wordVector.size() > 0) {
+            printf("WORD %f\n", wordVector.front().rect.x);
+          }
+
+          for (int j = 0; j < wordVector.size(); j++) {
+            float x = 100 + 200 * j;
+            wordVector[j].rect.x = x;
           }
           for (int i = 0; i < button_structs.size(); i++) {
             button_struct& obj = button_structs[i];
