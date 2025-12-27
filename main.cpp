@@ -148,12 +148,24 @@ void drawWord(letter_struct letter) {
   ); 
 
   if (letter.pressed) {
-    float x;
+    float x = 100;
+    for (int j = 0; j < wordVector.size(); j++) {
+      float possibleX = x + 200 * j;
+
+      if (wordVector[j].rect.x != possibleX) {
+        wordVector.insert(wordVector.begin() + j, {
+          .rect = { possibleX, 100, 100, 100 },
+          .name = letter.name, 
+          .points = letter.points 
+        });
+        return;
+      } 
+    }
+
     if (wordVector.size() > 0) {
       x = wordVector.back().rect.x + 200;
-    } else {
-      x = 100;
-    }
+    } 
+
     wordVector.push_back({
       .rect = { x, 100, 100, 100 },
       .name = letter.name, 
@@ -481,14 +493,6 @@ int main() {
               wordVector.erase(wordVector.begin() + i);
             }
           }
-          if (wordVector.size() > 0) {
-            printf("WORD %f\n", wordVector.front().rect.x);
-          }
-
-          for (int j = 0; j < wordVector.size(); j++) {
-            float x = 100 + 200 * j;
-            wordVector[j].rect.x = x;
-          }
           for (int i = 0; i < button_structs.size(); i++) {
             button_struct& obj = button_structs[i];
             if (SDL_PointInRectFloat(&point, &obj.rect)) {
@@ -519,7 +523,6 @@ int main() {
         }
       }
     }
-
     SDL_RenderPresent(renderer);
 
     uint64_t EndCounter = SDL_GetPerformanceCounter();
